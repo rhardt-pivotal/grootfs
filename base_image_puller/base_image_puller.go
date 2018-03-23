@@ -100,7 +100,18 @@ func (p *BaseImagePuller) Pull(logger lager.Logger, baseImageInfo groot.BaseImag
 		return err
 	}
 
-	return p.buildLayer(logger, len(baseImageInfo.LayerInfos)-1, baseImageInfo.LayerInfos, spec)
+	for index, layerInfo := range baseImageInfo.LayerInfos {
+		var parentLayerInfo groot.LayerInfo
+
+		if index > 0 {
+			parentLayerInfo = baseImageInfo.LayerInfos[index-1]
+		}
+
+		if err := p.buildLayer(logger, layerInfo, parentLayerInfo, spec); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (p *BaseImagePuller) quotaExceeded(logger lager.Logger, layerInfos []groot.LayerInfo, spec groot.BaseImageSpec) error {
@@ -135,12 +146,7 @@ func (p *BaseImagePuller) volumeExists(logger lager.Logger, chainID string) bool
 	return false
 }
 
-func (p *BaseImagePuller) buildLayer(logger lager.Logger, index int, layerInfos []groot.LayerInfo, spec groot.BaseImageSpec) error {
-	if index < 0 {
-		return nil
-	}
-
-	layerInfo := layerInfos[index]
+func (p *BaseImagePuller) buildLayer(logger lager.Logger, layerInfo, parentLayerInfo groot.LayerInfo, spec groot.BaseImageSpec) error {
 	logger = logger.Session("build-layer", lager.Data{
 		"blobID":        layerInfo.BlobID,
 		"chainID":       layerInfo.ChainID,
@@ -160,46 +166,25 @@ func (p *BaseImagePuller) buildLayer(logger lager.Logger, index int, layerInfos 
 		return nil
 	}
 
-	downloadChan := make(chan downloadReturn, 1)
-	go p.downloadLayer(logger, layerInfo, downloadChan)
-
-	if err := p.buildLayer(logger, index-1, layerInfos, spec); err != nil {
-		return err
-	}
-
-	downloadResult := <-downloadChan
-	if downloadResult.Err != nil {
-		return downloadResult.Err
-	}
-
-	defer downloadResult.Stream.Close()
-
-	var parentLayerInfo groot.LayerInfo
-	if index > 0 {
-		parentLayerInfo = layerInfos[index-1]
-	}
-	return p.unpackLayer(logger, layerInfo, parentLayerInfo, spec, downloadResult.Stream)
+	return p.downloadLayer(logger, layerInfo, parentLayerInfo, spec)
 }
 
-type downloadReturn struct {
-	Stream io.ReadCloser
-	Err    error
-}
-
-func (p *BaseImagePuller) downloadLayer(logger lager.Logger, layerInfo groot.LayerInfo, downloadChan chan downloadReturn) {
+func (p *BaseImagePuller) downloadLayer(logger lager.Logger, layerInfo groot.LayerInfo, parentLayerInfo groot.LayerInfo, spec groot.BaseImageSpec) error {
 	logger = logger.Session("downloading-layer", lager.Data{"LayerInfo": layerInfo})
 	logger.Debug("starting")
 	defer logger.Debug("ending")
+	// Missleading ? Does not actually download the layer
 	defer p.metricsEmitter.TryEmitDurationFrom(logger, MetricsDownloadTimeName, time.Now())
 
 	stream, size, err := p.fetcher.StreamBlob(logger, layerInfo)
 	if err != nil {
-		err = errorspkg.Wrapf(err, "streaming blob `%s`", layerInfo.BlobID)
+		return errorspkg.Wrapf(err, "streaming blob `%s`", layerInfo.BlobID)
 	}
+	defer stream.Close()
 
 	logger.Debug("got-stream-for-blob", lager.Data{"size": size})
+	return p.unpackLayer(logger, layerInfo, parentLayerInfo, spec, stream)
 
-	downloadChan <- downloadReturn{Stream: stream, Err: err}
 }
 
 func (p *BaseImagePuller) unpackLayer(logger lager.Logger, layerInfo, parentLayerInfo groot.LayerInfo, spec groot.BaseImageSpec, stream io.ReadCloser) error {
