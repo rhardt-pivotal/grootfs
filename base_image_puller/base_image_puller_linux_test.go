@@ -144,11 +144,11 @@ var _ = Describe("Base Image Puller", func() {
 
 			Expect(fakeUnpacker.UnpackCallCount()).To(Equal(3))
 			_, unpackSpec := fakeUnpacker.UnpackArgsForCall(0)
-			Expect(unpackSpec.TargetPath).To(MatchRegexp(filepath.Join(tmpVolumesDir, "layer-111-incomplete-\\d*-\\d*")))
+			Expect(unpackSpec.TargetPath).To(MatchRegexp(filepath.Join(tmpVolumesDir, "chain-333-incomplete-\\d*-\\d*")))
 			_, unpackSpec = fakeUnpacker.UnpackArgsForCall(1)
 			Expect(unpackSpec.TargetPath).To(MatchRegexp(filepath.Join(tmpVolumesDir, "chain-222-incomplete-\\d*-\\d*")))
 			_, unpackSpec = fakeUnpacker.UnpackArgsForCall(2)
-			Expect(unpackSpec.TargetPath).To(MatchRegexp(filepath.Join(tmpVolumesDir, "chain-333-incomplete-\\d*-\\d*")))
+			Expect(unpackSpec.TargetPath).To(MatchRegexp(filepath.Join(tmpVolumesDir, "layer-111-incomplete-\\d*-\\d*")))
 		})
 
 		Context("when there is a base directory provided on a layer", func() {
@@ -263,7 +263,7 @@ var _ = Describe("Base Image Puller", func() {
 					}
 				})
 
-				It("succeeds but doesn't set file attributes based on the parent layer", func() {
+				FIt("succeeds but doesn't set file attributes based on the parent layer", func() {
 					err := baseImagePuller.Pull(logger, baseImageInfo, groot.BaseImageSpec{})
 					Expect(err).NotTo(HaveOccurred())
 
@@ -299,11 +299,11 @@ var _ = Describe("Base Image Puller", func() {
 
 			Expect(fakeUnpacker.UnpackCallCount()).To(Equal(3))
 			_, unpackSpec := fakeUnpacker.UnpackArgsForCall(0)
-			Expect(unpackSpec.TargetPath).To(MatchRegexp(filepath.Join(volumesDir, "layer-111-incomplete-\\d*-\\d*")))
+			Expect(unpackSpec.TargetPath).To(MatchRegexp(filepath.Join(volumesDir, "chain-333-incomplete-\\d*-\\d*")))
 			_, unpackSpec = fakeUnpacker.UnpackArgsForCall(1)
 			Expect(unpackSpec.TargetPath).To(MatchRegexp(filepath.Join(volumesDir, "chain-222-incomplete-\\d*-\\d*")))
 			_, unpackSpec = fakeUnpacker.UnpackArgsForCall(2)
-			Expect(unpackSpec.TargetPath).To(MatchRegexp(filepath.Join(volumesDir, "chain-333-incomplete-\\d*-\\d*")))
+			Expect(unpackSpec.TargetPath).To(MatchRegexp(filepath.Join(volumesDir, "layer-111-incomplete-\\d*-\\d*")))
 		})
 
 		It("unpacks the layers got from the fetcher", func() {
@@ -331,9 +331,9 @@ var _ = Describe("Base Image Puller", func() {
 				Expect(string(contents)).To(Equal(expected))
 			}
 
-			validateLayer(0, "layer-i-am-a-layer-contents")
+			validateLayer(0, "layer-i-am-the-last-layer-contents")
 			validateLayer(1, "layer-i-am-another-layer-contents")
-			validateLayer(2, "layer-i-am-the-last-layer-contents")
+			validateLayer(2, "layer-i-am-a-layer-contents")
 		})
 
 		It("writes the metadata for each volume", func() {
@@ -347,8 +347,9 @@ var _ = Describe("Base Image Puller", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			Expect(fakeVolumeDriver.WriteVolumeMetaCallCount()).To(Equal(3))
+
 			_, id, metadata := fakeVolumeDriver.WriteVolumeMetaArgsForCall(0)
-			Expect(id).To(Equal("layer-111"))
+			Expect(id).To(Equal("chain-333"))
 			Expect(metadata).To(Equal(base_image_puller.VolumeMeta{Size: 100}))
 
 			_, id, metadata = fakeVolumeDriver.WriteVolumeMetaArgsForCall(1)
@@ -356,7 +357,7 @@ var _ = Describe("Base Image Puller", func() {
 			Expect(metadata).To(Equal(base_image_puller.VolumeMeta{Size: 200}))
 
 			_, id, metadata = fakeVolumeDriver.WriteVolumeMetaArgsForCall(2)
-			Expect(id).To(Equal("chain-333"))
+			Expect(id).To(Equal("layer-111"))
 			Expect(metadata).To(Equal(base_image_puller.VolumeMeta{Size: 300}))
 		})
 
@@ -653,7 +654,7 @@ var _ = Describe("Base Image Puller", func() {
 
 				Expect(fakeVolumeDriver.DestroyVolumeCallCount()).To(Equal(1))
 				_, path := fakeVolumeDriver.DestroyVolumeArgsForCall(0)
-				Expect(path).To(Equal("chain-333"))
+				Expect(path).To(Equal("layer-111"))
 			})
 
 			It("emits a metric with the unpack and download time for each layer", func() {
@@ -716,7 +717,7 @@ var _ = Describe("Base Image Puller", func() {
 
 					Expect(fakeVolumeDriver.DestroyVolumeCallCount()).To(Equal(1))
 					_, path := fakeVolumeDriver.DestroyVolumeArgsForCall(0)
-					Expect(path).To(Equal("chain-333"))
+					Expect(path).To(Equal("layer-111"))
 				})
 			})
 		})

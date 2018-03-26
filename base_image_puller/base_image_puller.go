@@ -100,14 +100,15 @@ func (p *BaseImagePuller) Pull(logger lager.Logger, baseImageInfo groot.BaseImag
 		return err
 	}
 
-	for index, layerInfo := range baseImageInfo.LayerInfos {
+	for i := len(baseImageInfo.LayerInfos) - 1; i >= 0; i-- {
 		var parentLayerInfo groot.LayerInfo
 
-		if index > 0 {
-			parentLayerInfo = baseImageInfo.LayerInfos[index-1]
+		if i > 0 {
+			parentLayerInfo = baseImageInfo.LayerInfos[i-1]
 		}
 
-		if err := p.buildLayer(logger, layerInfo, parentLayerInfo, spec); err != nil {
+		layerAlreadyExists, err := p.buildLayer(logger, baseImageInfo.LayerInfos[i], parentLayerInfo, spec)
+		if err != nil || layerAlreadyExists {
 			return err
 		}
 	}
@@ -146,34 +147,33 @@ func (p *BaseImagePuller) volumeExists(logger lager.Logger, chainID string) bool
 	return false
 }
 
-func (p *BaseImagePuller) buildLayer(logger lager.Logger, layerInfo, parentLayerInfo groot.LayerInfo, spec groot.BaseImageSpec) error {
+func (p *BaseImagePuller) buildLayer(logger lager.Logger, layerInfo, parentLayerInfo groot.LayerInfo, spec groot.BaseImageSpec) (bool, error) {
 	logger = logger.Session("build-layer", lager.Data{
 		"blobID":        layerInfo.BlobID,
 		"chainID":       layerInfo.ChainID,
 		"parentChainID": layerInfo.ParentChainID,
 	})
 	if p.volumeExists(logger, layerInfo.ChainID) {
-		return nil
+		return true, nil
 	}
 
 	lockFile, err := p.locksmith.Lock(layerInfo.ChainID)
 	if err != nil {
-		return errorspkg.Wrap(err, "acquiring lock")
+		return false, errorspkg.Wrap(err, "acquiring lock")
 	}
 	defer p.locksmith.Unlock(lockFile)
 
 	if p.volumeExists(logger, layerInfo.ChainID) {
-		return nil
+		return true, nil
 	}
 
-	return p.downloadLayer(logger, layerInfo, parentLayerInfo, spec)
+	return false, p.downloadLayer(logger, layerInfo, parentLayerInfo, spec)
 }
 
 func (p *BaseImagePuller) downloadLayer(logger lager.Logger, layerInfo groot.LayerInfo, parentLayerInfo groot.LayerInfo, spec groot.BaseImageSpec) error {
 	logger = logger.Session("downloading-layer", lager.Data{"LayerInfo": layerInfo})
 	logger.Debug("starting")
 	defer logger.Debug("ending")
-	// Missleading ? Does not actually download the layer
 	defer p.metricsEmitter.TryEmitDurationFrom(logger, MetricsDownloadTimeName, time.Now())
 
 	stream, size, err := p.fetcher.StreamBlob(logger, layerInfo)
