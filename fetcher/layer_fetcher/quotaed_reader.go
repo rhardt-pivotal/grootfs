@@ -1,6 +1,8 @@
 package layer_fetcher
 
 import (
+	"errors"
+	"fmt"
 	"io"
 )
 
@@ -9,6 +11,17 @@ type QuotaedReader struct {
 	QuotaLeft                 int64
 	SkipValidation            bool
 	QuotaExceededErrorHandler func() error
+}
+
+func NewQuotaedReader(delegateReader io.Reader, quotaLeft int64, skipValidation bool, errorMsg string) *QuotaedReader {
+	return &QuotaedReader{
+		DelegateReader: delegateReader,
+		QuotaLeft:      quotaLeft,
+		SkipValidation: skipValidation,
+		QuotaExceededErrorHandler: func() error {
+			return fmt.Errorf(errorMsg)
+		},
+	}
 }
 
 func (q *QuotaedReader) Read(p []byte) (int, error) {
@@ -32,4 +45,8 @@ func (q *QuotaedReader) Read(p []byte) (int, error) {
 
 func (q *QuotaedReader) AnyQuotaLeft() bool {
 	return q.QuotaLeft > 0 && !q.SkipValidation
+}
+
+func (q *QuotaedReader) Close() error {
+	return errors.New("should not be called")
 }

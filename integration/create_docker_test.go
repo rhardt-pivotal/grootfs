@@ -421,7 +421,7 @@ var _ = Describe("Create with remote DOCKER images", func() {
 			})
 		})
 
-		Context("when image size exceeds disk quota", func() {
+		Context("when the total size of compressed layers is greater than the quota", func() {
 			BeforeEach(func() {
 				baseImageURL = integration.String2URL("docker:///cfgarden/empty:v0.1.1")
 			})
@@ -449,6 +449,38 @@ var _ = Describe("Create with remote DOCKER images", func() {
 						DiskLimit:    10,
 					})
 					Expect(err).To(MatchError(ContainSubstring("layers exceed disk quota")))
+				})
+			})
+		})
+
+		FContext("when the total size of compressed layer is less than the quota, but the uncompressed size is bigger", func() {
+			BeforeEach(func() {
+				baseImageURL = integration.String2URL("docker:///cfgarden/iamthebomb:v1")
+			})
+
+			Context("when the image is not accounted for in the quota", func() {
+				It("succeeds", func() {
+					containerSpec, err := runner.Create(groot.CreateSpec{
+						BaseImageURL: baseImageURL,
+						ID:           randomImageID,
+						Mount:        mountByDefault(),
+						ExcludeBaseImageFromQuota: true,
+						DiskLimit:                 2 * 1024 * 1024,
+					})
+					Expect(runner.EnsureMounted(containerSpec)).To(Succeed())
+					Expect(err).ToNot(HaveOccurred())
+				})
+			})
+
+			Context("when the image is accounted for in the quota", func() {
+				It("returns an error", func() {
+					_, err := runner.Create(groot.CreateSpec{
+						BaseImageURL: baseImageURL,
+						ID:           randomImageID,
+						Mount:        mountByDefault(),
+						DiskLimit:    2 * 1024 * 1024,
+					})
+					Expect(err).To(MatchError(ContainSubstring("uncompressed layers exceed disk quota")))
 				})
 			})
 		})

@@ -278,7 +278,7 @@ var _ = Describe("Create with OCI images", func() {
 		})
 	})
 
-	Context("when image size exceeds disk quota", func() {
+	Context("when the total size of compressed layers is greater than the quota", func() {
 		Context("when the image is accounted for in the quota", func() {
 			It("returns an error", func() {
 				_, err := runner.Create(groot.CreateSpec{
@@ -292,6 +292,24 @@ var _ = Describe("Create with OCI images", func() {
 		})
 	})
 
+	FContext("when the total size of compressed layer is less than the quota, but the uncompressed size is bigger", func() {
+
+		BeforeEach(func() {
+			baseImageURL = integration.String2URL(fmt.Sprintf("oci:///%s/assets/oci-test-image/zip-bomb:latest", workDir))
+		})
+
+		Context("when the image is accounted for in the quota", func() {
+			It("returns an error", func() {
+				_, err := runner.Create(groot.CreateSpec{
+					BaseImageURL: baseImageURL,
+					ID:           randomImageID,
+					Mount:        mountByDefault(),
+					DiskLimit:    3 * 1024 * 1024,
+				})
+				Expect(err).To(MatchError(ContainSubstring("uncompressed layers exceed disk quota")))
+			})
+		})
+	})
 	Context("when the layer size reported in the manifest is less than the physical size of the layer", func() {
 		BeforeEach(func() {
 			baseImageURL = integration.String2URL(fmt.Sprintf("oci:///%s/assets/oci-test-image/invalid-manifest-size-less-than-physical-size:latest", workDir))
