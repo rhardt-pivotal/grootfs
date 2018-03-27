@@ -221,9 +221,10 @@ var _ = Describe("Create with remote DOCKER images", func() {
 			})
 		})
 
-		Context("when a layer in an image has opaque whiteouts", func() {
+		Context("***ROB when a layer in an image has opaque whiteouts", func() {
 			BeforeEach(func() {
-				baseImageURL = integration.String2URL("docker:///cfgarden/opq-whiteout-busybox")
+				// baseImageURL = integration.String2URL("docker:///cfgarden/opq-whiteout-busybox")
+				baseImageURL = integration.String2URL("docker:///rhardt/simplecopy")
 			})
 
 			It("the upper layer dir that contains the opaque whiteout totally shadows the same dir in the lower layer", func() {
@@ -235,11 +236,11 @@ var _ = Describe("Create with remote DOCKER images", func() {
 				Expect(err).NotTo(HaveOccurred())
 				Expect(runner.EnsureMounted(containerSpec)).To(Succeed())
 
-				whiteoutedDir := filepath.Join(containerSpec.Root.Path, "var")
+				whiteoutedDir := filepath.Join(containerSpec.Root.Path, "mydir")
 				contents, err := ioutil.ReadDir(whiteoutedDir)
 				Expect(err).NotTo(HaveOccurred())
 				Expect(contents).To(HaveLen(1))
-				Expect(filepath.Join(containerSpec.Root.Path, "var", "istillexist")).To(BeAnExistingFile())
+				Expect(filepath.Join(containerSpec.Root.Path, "mydir", "")).To(BeAnExistingFile())
 			})
 		})
 
